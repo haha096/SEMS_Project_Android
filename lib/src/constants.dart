@@ -16,7 +16,7 @@
 // }
 
 class Env {
-  static const baseUrl = 'http://172.30.1.87:8080'; // ← PC IPv4 주소
+  static const baseUrl = 'http://10.0.2.2:8080'; // ← PC IPv4 주소
   static const mqttHost = '192.168.0.23';            // MQTT도 같이 수정
   static const mqttPort = 1883;
   static const mqttClientId = 'flutter_test';
