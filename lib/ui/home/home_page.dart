@@ -230,6 +230,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   /// TODO: 실제 API 연동
+  /// ddd
   /// - GET /api/indoor/summary  -> { temp, hum, pm10, pm25 }
   /// - GET /api/outdoor/summary -> { temp, hum, pm10, pm25 }
   Future<void> _load() async {
