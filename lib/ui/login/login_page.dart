@@ -221,11 +221,15 @@ class _LoginPageState extends State<LoginPage> {
 
                     // 로그인 버튼
                     ElevatedButton(
-                      onPressed: _loading ? null : _onLogin,
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        child: Text(_loading ? "로그인 중..." : "로그인"),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,   // #3572FF
+                        foregroundColor: Colors.white,        // 글자색
+                        minimumSize: const Size.fromHeight(48),
+                        shape: const StadiumBorder(),         // 목업같이 pill 모양
+                        elevation: 0,
                       ),
+                      onPressed: _loading ? null : _onLogin,
+                      child: Text(_loading ? "로그인 중..." : "로그인"),
                     ),
 
                     const SizedBox(height: 12),
