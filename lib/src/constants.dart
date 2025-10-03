@@ -15,6 +15,8 @@
 //   static const pubTopic = 'control/room1/power';
 // }
 
+import 'package:flutter/material.dart';
+
 class Env {
   static const baseUrl = 'http://10.0.2.2:8080'; // ← PC IPv4 주소
   static const mqttHost = '192.168.0.23';            // MQTT도 같이 수정
@@ -22,4 +24,26 @@ class Env {
   static const mqttClientId = 'flutter_test';
   static const subTopic = 'sems/room1/state/power';
   static const pubTopic = 'control/room1/power';
+}
+
+class AppColors {
+  static const primary = Color(0xFF3572FF);
+  static const bg = Color(0xFFF7F8FA);
+  static const textStrong = Color(0xFF1F2937);
+  static const textWeak = Color(0xFF6B7280);
+}
+
+class AppDimens {
+  static const r = 20.0;
+  static const p = 16.0;
+  static const gap = 12.0;
+}
+
+class AppStrings {
+  static const appName = "SEMS";
+}
+
+// 서버 주소는 여기만 바꾸면 됩니다.
+class ApiConfig {
+  static String baseUrl = "http://10.0.2.2:8080";
 }
