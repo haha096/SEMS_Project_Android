@@ -1,95 +1,8 @@
-// import 'package:flutter/material.dart';
-// import 'package:sems_project/src/repository/auth_repository.dart';
-//
-// class LoginPage extends StatefulWidget {
-//   const LoginPage({super.key});
-//   @override
-//   State<LoginPage> createState() => _LoginPageState();
-// }
-//
-// class _LoginPageState extends State<LoginPage> {
-//   final _id = TextEditingController();
-//   final _pw = TextEditingController();
-//   final _repo = AuthRepository();
-//   bool _loading = false;
-//   String _msg = '';
-//
-//   @override
-//   void initState() {
-//     super.initState();
-//     _smoke(); // 서버 살아있는지 확인
-//   }
-//
-//   Future<void> _smoke() async {
-//     final ok = await _repo.health();
-//     if (!mounted) return;
-//     setState(() => _msg = ok ? '서버 OK' : '서버 응답 없음');
-//   }
-//
-//   Future<void> _doLogin() async {
-//     setState(() {
-//       _loading = true;
-//       _msg = '';
-//     });
-//     final ok = await _repo.login(_id.text.trim(), _pw.text.trim());
-//     if (!mounted) return;
-//     setState(() => _loading = false);
-//
-//     if (ok && await _repo.checkSession()) {
-//       if (!mounted) return;
-//       Navigator.pushReplacementNamed(context, '/home'); // 성공 시 홈으로 이동
-//     } else {
-//       ScaffoldMessenger.of(context).showSnackBar(
-//         const SnackBar(content: Text('로그인 실패 또는 세션 없음')),
-//       );
-//     }
-//   }
-//
-//   Future<void> _checkSession() async {
-//     final ok = await _repo.checkSession();
-//     if (!mounted) return;
-//     setState(() => _msg = ok ? '세션 있음' : '세션 없음');
-//   }
-//
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       appBar: AppBar(title: const Text('로그인')),
-//       body: Padding(
-//         padding: const EdgeInsets.all(16),
-//         child: Column(
-//           children: [
-//             Align(alignment: Alignment.centerLeft, child: Text(_msg)),
-//             const SizedBox(height: 12),
-//             TextField(
-//               controller: _id,
-//               decoration: const InputDecoration(labelText: 'ID'),
-//             ),
-//             TextField(
-//               controller: _pw,
-//               decoration: const InputDecoration(labelText: 'Password'),
-//               obscureText: true,
-//             ),
-//             const SizedBox(height: 16),
-//             ElevatedButton(
-//               onPressed: _loading ? null : _doLogin,
-//               child: _loading
-//                   ? const CircularProgressIndicator()
-//                   : const Text('로그인'),
-//             ),
-//             ElevatedButton(
-//               onPressed: _checkSession,
-//               child: const Text("세션 확인"),
-//             )
-//           ],
-//         ),
-//       ),
-//     );
-//   }
-// }
+// lib/ui/login/login_page.dart
 
 import 'package:flutter/material.dart';
-import '../../src/constants.dart'; // AppColors, AppDimens, ApiConfig 등
+import 'package:sems_project/src/constants.dart';
+import 'package:sems_project/src/repository/auth_repository.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -102,6 +15,7 @@ class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
   final _idCtrl = TextEditingController();
   final _pwCtrl = TextEditingController();
+  final _repo = AuthRepository();
   bool _obscure = true;
   bool _loading = false;
   String? _error;
@@ -118,14 +32,23 @@ class _LoginPageState extends State<LoginPage> {
     setState(() { _loading = true; _error = null; });
 
     try {
-      // TODO: 실제 API 연동 시 여기에 붙이세요.
-      // await api.login(_idCtrl.text.trim(), _pwCtrl.text);
-      await Future.delayed(const Duration(milliseconds: 600)); // 데모용
+      final id = _idCtrl.text.trim();
+      final pw = _pwCtrl.text;
+
+      // 1) 로그인 (JSON: { "id": "...", "password": "..." })
+      final ok = await _repo.login(id, pw);
+
+      // 2) 세션 확인 (쿠키)
+      final hasSession = await _repo.checkSession();
 
       if (!mounted) return;
-      Navigator.pushReplacementNamed(context, '/app');
+      if (ok && hasSession) {
+        Navigator.of(context).pushNamedAndRemoveUntil('/app', (route) => false);
+      } else {
+        setState(() { _error = "로그인 정보 없음"; });
+      }
     } catch (e) {
-      setState(() { _error = "로그인에 실패했어요. 아이디/비밀번호를 확인해주세요."; });
+      setState(() { _error = "로그인 중 오류: $e"; });
     } finally {
       if (mounted) setState(() { _loading = false; });
     }
