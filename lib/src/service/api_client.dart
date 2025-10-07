@@ -1,54 +1,41 @@
 import 'package:dio/dio.dart';
 import 'package:cookie_jar/cookie_jar.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
-import '../constants.dart';
-
-// class ApiClient {
-//   static late final Dio dio;
-//   static late final CookieJar cookieJar;
-//
-//   static void init() {
-//     dio = Dio(BaseOptions(
-//       baseUrl: Env.baseUrl,
-//       connectTimeout: const Duration(seconds: 5),
-//       receiveTimeout: const Duration(seconds: 10),
-//       followRedirects: true,
-//       validateStatus: (s) => s != null && s < 500,
-//     ));
-//     cookieJar = CookieJar();
-//     dio.interceptors.add(CookieManager(cookieJar));
-//   }
-// }
-
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 
 class ApiClient {
-  static late final Dio dio;
-  static late final CookieJar cookieJar;
+  static Dio? _dio;
 
-  /// 반드시 앱 시작 시 main()에서 ApiClient.init()을 호출하세요.
-  static void init() {
-    dio = Dio(
-      BaseOptions(
-        baseUrl: Env.baseUrl,              // ← http://10.0.2.2:8080 이어야 함
-        connectTimeout: const Duration(seconds: 5),
-        receiveTimeout: const Duration(seconds: 10),
-        followRedirects: true,
-        // 4xx는 throw 안 하고 response로 받게 함
-        validateStatus: (s) => s != null && s < 500,
-      ),
+  // 최초 1회 초기화 + Dio 반환
+  static Future<Dio> get instance async {
+    if (_dio != null) return _dio!;
+
+    final dio = Dio(BaseOptions(
+      baseUrl: "http://10.0.2.2:8080",
+      connectTimeout: const Duration(seconds: 5),
+      receiveTimeout: const Duration(seconds: 10),
+      validateStatus: (_) => true,
+    ));
+
+    // 영구 쿠키 저장 (JSESSIONID 유지)
+    final dir = await getApplicationDocumentsDirectory();
+    final jar = PersistCookieJar(
+      storage: FileStorage(p.join(dir.path, ".cookies")),
+      ignoreExpires: false,
     );
+    dio.interceptors.add(CookieManager(jar));
 
-    cookieJar = CookieJar();
-    dio.interceptors
-      ..add(CookieManager(cookieJar))
-      ..add(
-        LogInterceptor(
-          request: true,
-          requestHeader: true,
-          requestBody: true,
-          responseHeader: true,
-          responseBody: true,
-        ),
-      );
+    _dio = dio;
+    return _dio!;
+  }
+
+  // ✅ 기존 코드 호환용: ApiClient.dio 로 접근 가능하게
+  static Dio get dio {
+    final d = _dio;
+    if (d == null) {
+      throw StateError('ApiClient not initialized. Call `await ApiClient.instance` first.');
+    }
+    return d;
   }
 }

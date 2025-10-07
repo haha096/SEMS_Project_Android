@@ -1,4 +1,4 @@
-
+// lib/ui/control/control.dart
 import 'package:flutter/material.dart';
 import 'package:sems_project/src/service/api_client.dart';
 import '../../src/constants.dart';
@@ -14,18 +14,16 @@ class _ControlPageState extends State<ControlPage> {
   bool _loading = true;
   String? _error;
 
-  // 제어 상태
   bool _powerOn = false;
   bool _autoMode = true;
-  int _setTemp = 26;
-
-  // ✅ 실내 상황 (상단 카드용)
-  double? _inTemp;  // °C
-  double? _inHum;   // %
-  double? _inPm10;  // ㎍/m³
-  double? _inPm25;  // ㎍/m³
-
+  int _manualLevel = 1; // 1~3단
   bool _saving = false;
+
+  // 실내 상태(데모 값; 백엔드 연동되면 /state 응답에 맞춰 갱신)
+  double? _inTemp;
+  double? _inHum;
+  double? _inPm10;
+  double? _inPm25;
 
   @override
   void initState() {
@@ -33,18 +31,27 @@ class _ControlPageState extends State<ControlPage> {
     _load();
   }
 
+  /// 서버 상태 조회 → 화면 동기화
   Future<void> _load() async {
-    setState(() { _loading = true; _error = null; });
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
-      await Future.delayed(const Duration(milliseconds: 300)); // 데모
+      final dio = await ApiClient.instance;
+      final res = await dio.get('/api/motor/state'); // { powerOn, mode, level }
+
+      final data = res.data as Map<String, dynamic>? ?? {};
       setState(() {
-        _powerOn = true;
-        _autoMode = true;
-        _setTemp = 26;
-        _inTemp = 23;
-        _inHum = 40;
-        _inPm10 = 43;
-        _inPm25 = 18;
+        _powerOn = (data['powerOn'] as bool?) ?? false;
+        _autoMode = (data['mode'] as String?) == 'AUTO';
+        _manualLevel = (data['level'] as int?) ?? 1;
+
+        // 필요 시 실내값도 서버에서 주면 여기서 매핑
+        _inTemp ??= 23;
+        _inHum  ??= 40;
+        _inPm10 ??= 43;
+        _inPm25 ??= 18;
       });
     } catch (e) {
       setState(() => _error = '상태를 불러오지 못했습니다.');
@@ -53,13 +60,21 @@ class _ControlPageState extends State<ControlPage> {
     }
   }
 
-  /// 전원 제어 API
+  // ✅ 전원 제어
   Future<void> _setPower(bool on) async {
     final prev = _powerOn;
     setState(() => _powerOn = on);
+
     try {
-      await ApiClient.dio.post('/api/motor/power', data: {'on': on});
-    } catch (_) {
+      final dio = await ApiClient.instance;
+      final res = await dio.post('/api/motor/power', data: {'on': on});
+      final msg = res.data?.toString() ?? '전원 명령 전송';
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+
+      // 서버 상태와 재동기화 (웹/다른 클라에서 바뀐 경우 포함)
+      await _load();
+    } catch (e) {
       setState(() => _powerOn = prev);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -68,9 +83,10 @@ class _ControlPageState extends State<ControlPage> {
     }
   }
 
-  /// 모드 제어 API
+  // ✅ 자동/수동 모드 제어
   Future<void> _setMode(bool auto) async {
-    if (!_powerOn) {   // ← 전원이 꺼져있으면 모드 변경 불가
+    if (!_powerOn) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('전원을 켠 뒤에 모드를 바꿀 수 있어요.')),
       );
@@ -81,13 +97,18 @@ class _ControlPageState extends State<ControlPage> {
     setState(() => _autoMode = auto);
 
     try {
-      if (auto) {
-        await ApiClient.dio.get('/api/motor/auto');
-      } else {
-        final level = _tempToLevel(_setTemp);
-        await ApiClient.dio.post('/api/motor/manual', data: {'level': level});
-      }
-    } catch (_) {
+      final dio = await ApiClient.instance;
+      final res = auto
+          ? await dio.get('/api/motor/auto')
+          : await dio.post('/api/motor/manual', data: {'level': _manualLevel});
+
+      final msg = res.data?.toString() ?? '모드 명령 전송';
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+
+      // 서버 상태와 재동기화
+      await _load();
+    } catch (e) {
       setState(() => _autoMode = prev);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -96,7 +117,7 @@ class _ControlPageState extends State<ControlPage> {
     }
   }
 
-  /// 설정 저장 API (수동 모드일 때만 가능)
+  // ✅ 수동 강도 저장
   Future<void> _save() async {
     if (_autoMode) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -111,14 +132,19 @@ class _ControlPageState extends State<ControlPage> {
       return;
     }
 
-    setState(() { _saving = true; _error = null; });
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
     try {
-      final level = _tempToLevel(_setTemp);
-      await ApiClient.dio.post('/api/motor/manual', data: {'level': level});
+      final dio = await ApiClient.instance;
+      final res = await dio.post('/api/motor/manual', data: {'level': _manualLevel});
+      final msg = res.data?.toString() ?? '설정 저장 완료';
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('저장되었습니다.')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+
+      // 저장 후 서버 상태 재조회(웹과 동기화)
+      await _load();
     } catch (e) {
       setState(() => _error = '저장 실패');
     } finally {
@@ -126,15 +152,11 @@ class _ControlPageState extends State<ControlPage> {
     }
   }
 
-  int _tempToLevel(int t) {
-    if (t <= 24) return 1;
-    if (t <= 27) return 2;
-    return 3;
-  }
-
-  // --- UI ---
-  Widget _sectionTitle(String text) =>
-      Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(text, style: const TextStyle(fontWeight: FontWeight.w700)));
+  // ─────────── UI 구성 ───────────
+  Widget _sectionTitle(String text) => Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: Text(text, style: const TextStyle(fontWeight: FontWeight.w700)),
+  );
 
   Widget _segButton({
     required String label,
@@ -172,9 +194,9 @@ class _ControlPageState extends State<ControlPage> {
   }
 
   Widget _indoorCard() {
-    final t  = _inTemp != null ? '${_inTemp!.toStringAsFixed(0)}°C' : '--';
-    final h  = _inHum  != null ? '${_inHum!.toStringAsFixed(0)}%'  : '--';
-    final p10= _inPm10 != null ? '${_inPm10!.toStringAsFixed(0)} ㎍/m³' : '--';
+    final t = _inTemp != null ? '${_inTemp!.toStringAsFixed(0)}°C' : '--';
+    final h = _inHum != null ? '${_inHum!.toStringAsFixed(0)}%' : '--';
+    final p10 = _inPm10 != null ? '${_inPm10!.toStringAsFixed(0)}㎍/m³' : '--';
 
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
@@ -194,41 +216,37 @@ class _ControlPageState extends State<ControlPage> {
     );
   }
 
-  Widget _tempCard() {
+  Widget _manualLevelCard() {
     final enabled = _powerOn && !_autoMode;
     return Card(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.symmetric(vertical: 16),
         child: Row(
-          children: [
-            Text(
-              '$_setTemp도',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-                color: enabled ? Colors.black : Colors.grey,
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: List.generate(3, (i) {
+            final level = i + 1;
+            final active = _manualLevel == level;
+            return ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: active ? AppColors.primary : Colors.white,
+                foregroundColor: active ? Colors.white : AppColors.primary,
+                minimumSize: const Size(80, 45),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                side: const BorderSide(color: AppColors.primary),
               ),
-            ),
-            const Spacer(),
-            IconButton(
-              onPressed: enabled ? () => setState(() => _setTemp++) : null,
-              icon: const Icon(Icons.keyboard_arrow_up, size: 28),
-              tooltip: '온도 올림',
-            ),
-            IconButton(
-              onPressed: enabled && _setTemp > 0
-                  ? () => setState(() => _setTemp--)
-                  : null,
-              icon: const Icon(Icons.keyboard_arrow_down, size: 28),
-              tooltip: '온도 내림',
-            ),
-          ],
+              onPressed: enabled ? () => setState(() => _manualLevel = level) : null,
+              child: Text('${level}단'),
+            );
+          }),
         ),
       ),
     );
   }
 
+  // ─────────── 빌드 ───────────
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -250,7 +268,7 @@ class _ControlPageState extends State<ControlPage> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(_error!, style: const TextStyle(color: Colors.red)),
-                  SizedBox(height: 8),
+                  const SizedBox(height: 8),
                   OutlinedButton(onPressed: _load, child: const Text('다시 시도')),
                 ],
               ),
@@ -274,14 +292,14 @@ class _ControlPageState extends State<ControlPage> {
           _sectionTitle('공기청정기 전원'),
           Row(
             children: [
-              _segButton(label: 'ON',  active: _powerOn,  onTap: () => _setPower(true)),
+              _segButton(label: 'ON', active: _powerOn, onTap: () => _setPower(true)),
               const SizedBox(width: 10),
               _segButton(label: 'OFF', active: !_powerOn, onTap: () => _setPower(false)),
             ],
           ),
           const SizedBox(height: 18),
 
-          _sectionTitle('공기청정기 제어'),
+          _sectionTitle('공기청정기 제어 모드'),
           Row(
             children: [
               _segButton(label: '자동', active: _autoMode, onTap: _powerOn ? () => _setMode(true) : null),
@@ -291,8 +309,8 @@ class _ControlPageState extends State<ControlPage> {
           ),
           const SizedBox(height: 18),
 
-          _sectionTitle('공기청정기 설정온도'),
-          _tempCard(),
+          _sectionTitle('수동 모드 강도 설정'),
+          _manualLevelCard(),
           const SizedBox(height: 8),
 
           ElevatedButton(
@@ -306,7 +324,8 @@ class _ControlPageState extends State<ControlPage> {
             onPressed: (_powerOn && !_autoMode && !_saving) ? _save : null,
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
-              child: Text(_saving ? '저장 중...' : '저장', style: const TextStyle(fontWeight: FontWeight.w700)),
+              child: Text(_saving ? '저장 중...' : '저장',
+                  style: const TextStyle(fontWeight: FontWeight.w700)),
             ),
           ),
         ],

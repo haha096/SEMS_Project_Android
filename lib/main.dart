@@ -8,9 +8,9 @@ import 'ui/common/theme.dart';
 import 'ui/login/login_page.dart';
 import 'ui/shell/app_shell.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  ApiClient.init();
+  await ApiClient.instance;
   runApp(const SemsApp());
 }
 
