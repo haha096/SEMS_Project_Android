@@ -1,4 +1,5 @@
 // lib/ui/control/control.dart
+//control페이지 연동 v1브랜치
 import 'package:flutter/material.dart';
 import 'package:sems_project/src/service/api_client.dart';
 import '../../src/constants.dart';
