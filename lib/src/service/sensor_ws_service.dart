@@ -4,6 +4,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:web_socket_channel/status.dart' as status;
 import '../model/dto/sensor_data.dart';
 
+//실내데이터 웹소켓
 class SensorWsService {
   SensorWsService._();
   static final SensorWsService instance = SensorWsService._();
