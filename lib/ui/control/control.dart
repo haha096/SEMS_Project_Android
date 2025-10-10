@@ -3,6 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:sems_project/src/service/api_client.dart';
 import '../../src/constants.dart';
 import '../common/header.dart';
+import 'dart:async';
+import 'dart:convert';
+import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:web_socket_channel/status.dart' as ws_status;
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class ControlPage extends StatefulWidget {
   const ControlPage({super.key});
@@ -19,19 +24,110 @@ class _ControlPageState extends State<ControlPage> {
   int _manualLevel = 1; // 1~3단
   bool _saving = false;
 
-  // 실내 상태(데모 값; 백엔드 연동되면 /state 응답에 맞춰 갱신)
+  // ✅ 실내 상태 (WebSocket으로 실시간 수신)
   double? _inTemp;
   double? _inHum;
   double? _inPm10;
   double? _inPm25;
+  DateTime? _lastUpdate;
+
+  // ✅ WebSocket 관련
+  WebSocketChannel? _channel;
+  StreamSubscription? _sub;
+  Timer? _reconnectTimer;
+  int _retrySec = 1;
+  bool _disposed = false;
+
+  String get _wsUrl {
+    if (kIsWeb) return 'ws://localhost:8080/ws/sensor';
+    return 'ws://10.0.2.2:8080/ws/sensor';
+  }
 
   @override
   void initState() {
     super.initState();
-    _load();
+    _connectWs(); // 실내 데이터 WebSocket 연결
+    _load(); // 제어 상태는 REST로 가져옴
   }
 
-  /// 서버 상태 조회 → 화면 동기화
+  @override
+  void dispose() {
+    _disposed = true;
+    _reconnectTimer?.cancel();
+    _sub?.cancel();
+    _channel?.sink.close(ws_status.normalClosure);
+    super.dispose();
+  }
+
+  // ─────────── WebSocket 연결 ───────────
+  void _connectWs() {
+    _reconnectTimer?.cancel();
+    _retrySec = 1;
+    debugPrint('[control] WS connecting -> $_wsUrl');
+
+    try {
+      _channel = WebSocketChannel.connect(Uri.parse(_wsUrl));
+      _sub = _channel!.stream.listen(
+        _onWsMessage,
+        onError: (e) {
+          debugPrint('[control] WS error: $e');
+          _scheduleReconnect('onError');
+        },
+        onDone: () {
+          debugPrint('[control] WS closed');
+          _scheduleReconnect('onDone');
+        },
+        cancelOnError: true,
+      );
+    } catch (e) {
+      debugPrint('[control] WS connect() failed: $e');
+      _scheduleReconnect('connect() failed');
+    }
+  }
+
+  void _scheduleReconnect(String reason) {
+    if (_disposed) return;
+    _sub?.cancel();
+    _channel = null;
+
+    final wait = Duration(seconds: _retrySec.clamp(1, 10));
+    debugPrint('[control] reconnect in ${wait.inSeconds}s ($reason)');
+    _reconnectTimer = Timer(wait, () {
+      _retrySec = (_retrySec * 2).clamp(2, 10);
+      _connectWs();
+    });
+  }
+
+  void _onWsMessage(dynamic event) {
+    debugPrint('[control] WS recv: $event');
+    try {
+      final map = json.decode(event as String) as Map<String, dynamic>;
+
+      double? numOrNull(String k) {
+        final v = map[k];
+        return v == null ? null : double.tryParse(v.toString());
+      }
+
+      final temp = numOrNull('TEMP');
+      final hum = numOrNull('HUM');
+      final pm10 = numOrNull('PM10');
+      final pm25 = numOrNull('PM2.5') ?? numOrNull('PM2_5');
+
+      if (!_disposed) {
+        setState(() {
+          _inTemp = temp;
+          _inHum = hum;
+          _inPm10 = pm10;
+          _inPm25 = pm25;
+          _lastUpdate = DateTime.now();
+        });
+      }
+    } catch (e) {
+      debugPrint('[control] parse fail: $e');
+    }
+  }
+
+  // ─────────── REST 통신 (제어 상태) ───────────
   Future<void> _load() async {
     setState(() {
       _loading = true;
