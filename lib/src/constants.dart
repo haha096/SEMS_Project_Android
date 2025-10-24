@@ -19,7 +19,7 @@ import 'package:flutter/material.dart';
 
 class Env {
   // 개발: 에뮬레이터 → 호스트 PC
-  static const baseUrl = 'http://10.0.2.2:8080';
+  static const baseUrl = 'http://127.0.0.1:8080';
   // 배포 시:
   // static const baseUrl = 'https://api.your-domain.com';
   static const mqttHost = '192.168.0.23';            // MQTT도 같이 수정
@@ -48,5 +48,5 @@ class AppStrings {
 
 // 서버 주소는 여기만 바꾸면 됩니다.
 class ApiConfig {
-  static String baseUrl = "http://10.0.2.2:8080";
+  static String baseUrl = "http://127.0.0.1:8080";
 }

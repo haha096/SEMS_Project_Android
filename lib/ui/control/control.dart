@@ -40,7 +40,7 @@ class _ControlPageState extends State<ControlPage> {
 
   String get _wsUrl {
     if (kIsWeb) return 'ws://localhost:8080/ws/sensor';
-    return 'ws://10.0.2.2:8080/ws/sensor';
+    return 'ws://127.0.0.1:8080/ws/sensor';
   }
 
   @override
