@@ -3,6 +3,7 @@ import 'package:cookie_jar/cookie_jar.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 // 무선 디버깅 방법
 // 1. cmd에서 cd C:\Users\사용자\AppData\Local\Android\Sdk\platform-tools
@@ -15,6 +16,7 @@ import 'package:path/path.dart' as p;
 
 class ApiClient {
   static Dio? _dio;
+  static final _storage = const FlutterSecureStorage();
 
   // 최초 1회 초기화 + Dio 반환
   static Future<Dio> get instance async {
@@ -34,6 +36,20 @@ class ApiClient {
       requestBody: true,
       responseBody: true,
       error: true,
+    ));
+
+    //매 요청에 Authorization 자동첨부
+    dio.interceptors.add(InterceptorsWrapper(
+      onRequest: (options, handler) async {
+        // final jwt = await _storage.read(key: 'jwt_token');
+        // if (jwt != null && jwt.isNotEmpty) {
+        //   // 백엔드가 "Bearer <JWT>" 기대한다고 가정(필요 시 아래 한 줄을 jwt만 보내도록 바꾸세요)
+        //   options.headers['Authorization'] = 'Bearer $jwt';
+        //   // 만약 컨트롤러가 순수 토큰만 기대한다면:
+        //   // options.headers['Authorization'] = jwt;
+        // }
+        handler.next(options);
+      },
     ));
 
     // 영구 쿠키 저장 (JSESSIONID 유지)
@@ -56,4 +72,14 @@ class ApiClient {
     }
     return d;
   }
+
+  // JWT 저장/삭제 헬퍼
+  static Future<void> saveToken(String token) async =>
+      _storage.write(key: 'jwt_token', value: token);
+
+  static Future<String?> readToken() async =>
+      _storage.read(key: 'jwt_token');
+
+  static Future<void> clearToken() async =>
+      _storage.delete(key: 'jwt_token');
 }

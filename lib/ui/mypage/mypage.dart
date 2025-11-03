@@ -26,7 +26,7 @@ class _MyPageState extends State<MyPage> {
 
   Future<void> _fetchSessionInfo() async {
     try {
-      final res = await ApiClient.dio.get("/api/user/session");
+      final res = await ApiClient.dio.get("/api/auth/session");
 
       if (res.statusCode == 200) {
         setState(() {
