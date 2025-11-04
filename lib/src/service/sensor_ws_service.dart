@@ -75,7 +75,7 @@ class SensorWsService {
   Timer? _reconnectTimer;
 
   // ✅ 물리 디바이스 + adb reverse
-  static const String wsUrl = 'ws://127.0.0.1:8080/ws/sensor';
+  static const String wsUrl = 'ws://127.0.01:8080/ws/sensor';
 
   void connect() {
     if (_channel != null) return;
